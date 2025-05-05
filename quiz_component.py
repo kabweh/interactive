@@ -1,24 +1,37 @@
 # ai_tutor_project/quiz_component.py
 import streamlit as st
-from quiz_generator import QuizGenerator
 
-def show_quiz(text: str):
+def show_quiz():
     """
-    Renders a quiz based on the provided text content.
+    Renders a simple quiz and returns the user’s answers & score once submitted.
+    Returns:
+        dict or None: 
+          - On submit: {'score': int, 'answers': {...}} 
+          - Before submit: None
     """
-    st.write("### Quiz Time!")
-    if not text:
-        st.info("Please upload and explain some material first.")
-        return
+    st.header("Quiz")
 
-    # Generate questions
-    gen = QuizGenerator()
-    questions = gen.generate(text)
+    # Example question – replace/add your own as needed
+    q1 = "What is 2 + 2?"
+    opts1 = ["1", "2", "3", "4"]
+    ans1 = st.radio(q1, opts1, key="q1")
 
-    # Display each question with multiple choice options
-    for idx, q in enumerate(questions, start=1):
-        st.radio(
-            label=f"{idx}. {q}",
-            options=["A", "B", "C", "D"],
-            key=f"quiz_{idx}"
-        )
+    # You can add more questions similarly, using distinct keys...
+
+    if st.button("Submit Quiz"):
+        score = 0
+        answers = {"q1": ans1}
+
+        # simple scoring logic – adapt to your real quiz
+        if ans1 == "4":
+            score += 1
+
+        # feedback
+        if score > 0:
+            st.success(f"You scored {score} point{'s' if score!=1 else ''}!")
+        else:
+            st.error("Better luck next time!")
+
+        return {"score": score, "answers": answers}
+
+    return None
