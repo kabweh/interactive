@@ -1,24 +1,43 @@
-# ai_tutor_project/quiz_component.py
+# ai_tutor_project/report_component.py
 import streamlit as st
-from quiz_generator import QuizGenerator
+from report_generator import build_report
+import smtplib
+from email.message import EmailMessage
 
-def show_quiz(text: str):
+def send_report():
     """
-    Renders a quiz based on the provided text content.
+    Generates the PDF report for the current user and emails it to the configured parent addresses.
     """
-    st.write("### Quiz Time!")
-    if not text:
-        st.info("Please upload and explain some material first.")
+    user_id = st.session_state.get("user_id")
+    if not user_id:
+        st.error("User ID not found. Please log in before sending a report.")
         return
 
-    # Generate questions
-    gen = QuizGenerator()
-    questions = gen.generate(text)
+    # Build the PDF report
+    pdf_bytes = build_report(user_id)
 
-    # Display each question with multiple choice options
-    for idx, q in enumerate(questions, start=1):
-        st.radio(
-            label=f"{idx}. {q}",
-            options=["A", "B", "C", "D"],
-            key=f"quiz_{idx}"
-        )
+    # Compose the email message
+    msg = EmailMessage()
+    msg["Subject"] = "Your Child's Progress Report"
+    msg["From"] = st.secrets["email"]["sender"]
+    msg["To"] = ",".join(st.secrets["email"]["parents"])
+    msg.set_content("Attached is the latest progress report.")
+    msg.add_attachment(
+        pdf_bytes,
+        maintype="application",
+        subtype="pdf",
+        filename="progress_report.pdf"
+    )
+
+    # Send the email via SMTP
+    try:
+        with smtplib.SMTP(st.secrets["email"]["smtp_server"], port=587) as smtp:
+            smtp.starttls()
+            smtp.login(
+                st.secrets["email"]["user"],
+                st.secrets["email"]["pass"]
+            )
+            smtp.send_message(msg)
+        st.success("Progress report emailed successfully!")
+    except Exception as e:
+        st.error(f"Failed to send report: {e}")
