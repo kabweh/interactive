@@ -1,115 +1,104 @@
-import streamlit as st
-import json
 import os
-import uuid
-import hashlib
+import json
+import secrets
+import streamlit as st
 
-# File paths for storing users and invite codes\USERS_FILE = 'users.json'
-INVITE_FILE = 'invite_codes.json'
+# --- File paths ---
+DATA_FOLDER = "data"
+USERS_FILE = os.path.join(DATA_FOLDER, "users.json")
+INVITE_FILE = os.path.join(DATA_FOLDER, "invite_codes.json")
 
-# Utility functions
+# Ensure data directory exists
+os.makedirs(DATA_FOLDER, exist_ok=True)
 
-def load_data(file_path, default):
-    if not os.path.exists(file_path):
-        with open(file_path, 'w') as f:
-            json.dump(default, f)
-    with open(file_path, 'r') as f:
-        return json.load(f)
-
-
-def save_data(file_path, data):
-    with open(file_path, 'w') as f:
-        json.dump(data, f, indent=4)
-
-
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# --- Data helpers ---
+def load_data(path, default):
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return default
+    return default
 
 
-# Main authentication UI
+def save_data(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
+
+# --- Authentication UI ---
 def auth_ui():
-    st.sidebar.title("Authentication")
+    st.sidebar.title("🛡️ Authentication")
     mode = st.sidebar.selectbox("Mode", ["Login", "Sign Up"])
 
-    # Load existing users and invite codes
+    # Load existing data
     users = load_data(USERS_FILE, [])
     invite_codes = load_data(INVITE_FILE, [])
 
     if mode == "Sign Up":
-        st.sidebar.header("Sign Up")
+        st.sidebar.subheader("Create an account")
+        username = st.sidebar.text_input("Username")
+        password = st.sidebar.text_input("Password", type="password")
+        code = st.sidebar.text_input("Invitation Code (leave blank if first user)")
+
+        if st.sidebar.button("Sign Up"):
+            # First user becomes admin without code
+            if not users:
+                is_admin = True
+            else:
+                # Validate invitation code
+                if code in invite_codes:
+                    is_admin = False
+                    invite_codes.remove(code)
+                    save_data(INVITE_FILE, invite_codes)
+                else:
+                    st.sidebar.error("Invalid invitation code.")
+                    st.stop()
+
+            # Check for duplicate username
+            if any(u["username"] == username for u in users):
+                st.sidebar.error("Username already exists.")
+            else:
+                # Save new user
+                users.append({
+                    "username": username,
+                    "password": password,
+                    "admin": is_admin
+                })
+                save_data(USERS_FILE, users)
+                st.sidebar.success("Account created! Please log in.")
+                st.experimental_rerun()
+
+    else:
+        st.sidebar.subheader("Login to your account")
         username = st.sidebar.text_input("Username")
         password = st.sidebar.text_input("Password", type="password")
 
-        # First user gets admin rights without invite code
-        if len(users) == 0:
-            st.sidebar.info("First user: no invite code needed. You will be admin.")
-            invite_code = None
-        else:
-            invite_code = st.sidebar.text_input("Invitation Code")
-
-        if st.sidebar.button("Register"):
-            if not username or not password:
-                st.sidebar.error("Enter both username and password.")
-            elif any(u['username'] == username for u in users):
-                st.sidebar.error("Username already taken.")
-            elif invite_code is None or invite_code in invite_codes:
-                # Remove used invite code
-                if invite_code:
-                    invite_codes.remove(invite_code)
-                    save_data(INVITE_FILE, invite_codes)
-
-                # Assign role
-                role = 'admin' if len(users) == 0 else 'user'
-                users.append({
-                    'username': username,
-                    'password': hash_password(password),
-                    'role': role
-                })
-                save_data(USERS_FILE, users)
-
-                # Set session state
-                st.session_state['user'] = {
-                    'username': username,
-                    'role': role
-                }
-                st.session_state['is_admin'] = (role == 'admin')
-
-                st.sidebar.success("Registration successful!")
-                st.experimental_rerun()
-            else:
-                st.sidebar.error("Invalid invitation code.")
-
-    else:
-        st.sidebar.header("Login")
-        username = st.sidebar.text_input("Username", key="login_username")
-        password = st.sidebar.text_input("Password", type="password", key="login_password")
-
         if st.sidebar.button("Login"):
-            user = next(
-                (u for u in users if u['username'] == username and u['password'] == hash_password(password)),
-                None
-            )
-            if user:
-                st.session_state['user'] = user
-                st.session_state['is_admin'] = (user['role'] == 'admin')
-                st.sidebar.success(f"Logged in as {username}")
-                st.experimental_rerun()
+            # Authenticate
+            for user in users:
+                if user["username"] == username and user["password"] == password:
+                    st.session_state["user"] = user
+                    st.sidebar.success("Logged in successfully.")
+                    break
             else:
-                st.sidebar.error("Invalid credentials.")
+                st.sidebar.error("Invalid username or password.")
+                st.stop()
 
-    # Invitation code management for admin
-    if st.session_state.get('is_admin'):
-        st.sidebar.header("Invitation Codes (Admin)")
-        if st.sidebar.button("Generate New Code"):
-            new_code = str(uuid.uuid4()).split('-')[0]
-            invite_codes.append(new_code)
-            save_data(INVITE_FILE, invite_codes)
-            st.sidebar.success(f"New invitation code: {new_code}")
+    # If logged in, show user info and admin panel
+    if "user" in st.session_state:
+        user = st.session_state["user"]
+        st.sidebar.markdown(f"**Logged in as:** {user['username']}")
 
-        st.sidebar.subheader("Active Codes")
-        if invite_codes:
-            for code in invite_codes:
-                st.sidebar.text(code)
-        else:
-            st.sidebar.write("No active codes.")
+        if user.get("admin"):
+            st.sidebar.subheader("🔑 Invitation Codes")
+            if st.sidebar.button("Generate New Code"):
+                new_code = secrets.token_urlsafe(8)
+                invite_codes.append(new_code)
+                save_data(INVITE_FILE, invite_codes)
+            st.sidebar.write(invite_codes)
+
+        if st.sidebar.button("Logout"):
+            del st.session_state['user']
+            st.experimental_rerun()
