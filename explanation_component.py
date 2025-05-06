@@ -1,23 +1,24 @@
-# ai_tutor_project/explanation_component.py
 import streamlit as st
 from lesson_explainer import LessonExplainer
 
-def show_explanation(text: str):
+def show_explanation(text):
     """
-    Renders the AI‑generated, annotated explanation of `text` 
-    and stores the raw explanation for TTS playback.
+    Displays the explanation interface: lets the user pick a difficulty level
+    and then uses LessonExplainer to generate and render the annotated explanation.
     """
-    # Difficulty selector
-    level = st.selectbox("Select difficulty level:", ["easy", "medium", "hard"])
+    st.title("Explain")
+    # 1) Let the user choose an explanation difficulty
+    level = st.selectbox(
+        "Select difficulty level:",
+        ["easy", "medium", "hard"],
+        index=0,
+        help="How detailed/challenging should the explanation be?"
+    )
 
-    # Generate explanation
-    explainer = LessonExplainer(api_key=st.secrets.get("MANUS_API_KEY"))
+    # 2) Instantiate the explainer (pass your Manus API key as positional)
+    api_key = st.secrets.get("MANUS_API_KEY")
+    explainer = LessonExplainer(api_key)
+
+    # 3) Generate and display the explanation
     resp = explainer.explain(text, level=level)
-
-    # Display annotated HTML (highlights, notes, etc.)
-    annotated = resp.get("annotated_html", "")
-    st.markdown(annotated, unsafe_allow_html=True)
-
-    # Save the plain explanation text for voice playback
-    explanation_text = resp.get("text", "")
-    st.session_state["last_explanation"] = explanation_text
+    st.markdown(resp, unsafe_allow_html=True)
