@@ -1,6 +1,5 @@
 import streamlit as st
 from lesson_explainer import LessonExplainer
-import inspect
 
 def show_explanation(text: str) -> None:
     """
@@ -19,29 +18,24 @@ def show_explanation(text: str) -> None:
     # 2) Instantiate the explainer
     explainer = LessonExplainer()
 
-    # 3) Determine available explanation method
+    # 3) Generate the explanation via whichever method exists
+    explanation_html = None
     if hasattr(explainer, "explain"):
-        method = explainer.explain
+        # newest API
+        explanation_html = explainer.explain(text, level=level)
     elif hasattr(explainer, "generate"):
-        method = explainer.generate
+        # older alias
+        explanation_html = explainer.generate(text, level=level)
     elif hasattr(explainer, "generate_explanation"):
-        method = explainer.generate_explanation
+        # some versions expect positional args only
+        explanation_html = explainer.generate_explanation(text, level)
     elif hasattr(explainer, "get_explanation"):
-        method = explainer.get_explanation
+        # even older API
+        explanation_html = explainer.get_explanation(text, level=level)
     else:
-        st.error("Unsupported explainer API. Unable to find an explanation method.")
+        # no supported method found
+        st.warning("⚠️ LessonExplainer has no supported explanation method.")
         return
 
-    # 4) Generate the explanation, with or without difficulty level
-    try:
-        sig = inspect.signature(method)
-        if "level" in sig.parameters:
-            explanation_html = method(text, level=level)
-        else:
-            explanation_html = method(text)
-    except Exception as e:
-        st.error(f"Error generating explanation: {e}")
-        return
-
-    # 5) Display the HTML with highlights and notes
+    # 4) Display the HTML with highlights and notes
     st.markdown(explanation_html, unsafe_allow_html=True)
