@@ -18,18 +18,29 @@ def show_explanation(text: str) -> None:
     # 2) Instantiate the explainer (no args)
     explainer = LessonExplainer()
 
-    # 3) Generate the explanation by trying a few likely method names
-    if hasattr(explainer, "generate"):
-        explanation_html = explainer.generate(text, level=level)
-    elif hasattr(explainer, "generate_explanation"):
-        explanation_html = explainer.generate_explanation(text, level=level)
-    elif hasattr(explainer, "get_explanation"):
-        explanation_html = explainer.get_explanation(text, level=level)
-    else:
+    # 3) Generate the explanation by trying known methods and calling them flexibly
+    explanation_html = None
+    for method_name in ("explain", "generate", "generate_explanation", "get_explanation"):
+        if hasattr(explainer, method_name):
+            method = getattr(explainer, method_name)
+            # Try calling with level as keyword, then positional, then without
+            for call in (
+                lambda: method(text, level=level),
+                lambda: method(text, level),
+                lambda: method(text),
+            ):
+                try:
+                    explanation_html = call()
+                    break
+                except TypeError:
+                    continue
+            if explanation_html is not None:
+                break
+
+    if explanation_html is None:
         raise AttributeError(
-            "LessonExplainer has no `.generate`, "
-            "`.generate_explanation` or `.get_explanation` method. "
-            "Please update this file to call the correct method name."
+            "Could not call any of explain/generate/generate_explanation/get_explanation "
+            "with or without a 'level' argument on LessonExplainer."
         )
 
     # 4) Display the HTML with highlights and notes
