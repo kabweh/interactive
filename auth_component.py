@@ -1,74 +1,120 @@
 import streamlit as st
 import os
 import json
-import datetime
-from pathlib import Path
+import hashlib
+import random
+import string
+from datetime import datetime
 
-# Directories and files for storing materials and metadata
-MATERIALS_DIR = "data/materials"
-MATERIALS_FILE = "data/materials.json"
+# Paths for user and invite data
+USERS_FILE = "data/users.json"
+INVITE_FILE = "data/invite_codes.json"
 
-class UploadManager:
+# Ensure data directory and files exist
+os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+if not os.path.exists(USERS_FILE):
+    with open(USERS_FILE, 'w') as f:
+        json.dump([], f)
+if not os.path.exists(INVITE_FILE):
+    with open(INVITE_FILE, 'w') as f:
+        json.dump([], f)
+
+
+def load_data(path, default):
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def save_data(path, data):
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+
+def gen_invite_code(length: int = 8):
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
+
+def auth_ui():
     """
-    Manages saving uploaded files and recording metadata.
+    Streamlit UI for user authentication and invitation management.
     """
-    @staticmethod
-    def save(uploaded_file):
-        # Ensure directories exist
-        os.makedirs(MATERIALS_DIR, exist_ok=True)
-        os.makedirs(os.path.dirname(MATERIALS_FILE), exist_ok=True)
+    st.sidebar.title("Authentication")
+    mode = st.sidebar.selectbox("Mode", ["Login", "Sign Up"])
 
-        # Load existing metadata
-        try:
-            with open(MATERIALS_FILE, "r") as f:
-                materials = json.load(f)
-        except FileNotFoundError:
-            materials = []
+    users = load_data(USERS_FILE, [])
+    invite_codes = load_data(INVITE_FILE, [])
 
-        # Generate a unique filename to prevent collisions
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        safe_name = f"{timestamp}_{uploaded_file.name}"
-        save_path = os.path.join(MATERIALS_DIR, safe_name)
+    # --- LOGIN ---
+    if mode == "Login":
+        username = st.sidebar.text_input("Username")
+        password = st.sidebar.text_input("Password", type="password")
+        if st.sidebar.button("Login"):
+            hashed = hash_password(password)
+            user = next((u for u in users if u['username']==username and u['password']==hashed), None)
+            if user:
+                st.session_state.user = user
+                st.sidebar.success(f"Logged in as {username}")
+            else:
+                st.sidebar.error("Invalid credentials")
 
-        # Save the file to disk
-        with open(save_path, "wb") as out_file:
-            out_file.write(uploaded_file.getbuffer())
+    # --- SIGN UP ---
+    else:
+        username = st.sidebar.text_input("Choose a Username")
+        password = st.sidebar.text_input("Choose a Password", type="password")
+        need_code = len(users) > 0
+        code = None
+        if need_code:
+            code = st.sidebar.text_input("Invitation Code")
 
-        # Record metadata
-        uploader = st.session_state.get("user", {}).get("username", "unknown")
-        material_entry = {
-            "original_name": uploaded_file.name,
-            "stored_name": safe_name,
-            "uploaded_at": datetime.datetime.now().isoformat(),
-            "uploader": uploader,
-            "path": save_path
-        }
-        materials.append(material_entry)
+        if st.sidebar.button("Sign Up"):
+            if not username or not password:
+                st.sidebar.error("Please provide both username and password.")
+            elif need_code and code not in invite_codes:
+                st.sidebar.error("Invalid or missing invitation code.")
+            else:
+                hashed = hash_password(password)
+                is_admin = len(users) == 0
+                new_user = {
+                    'username': username,
+                    'password': hashed,
+                    'admin': is_admin,
+                    'joined': datetime.utcnow().isoformat()
+                }
+                users.append(new_user)
+                save_data(USERS_FILE, users)
 
-        # Persist metadata
-        with open(MATERIALS_FILE, "w") as f:
-            json.dump(materials, f, indent=2)
+                # consume invite code if used
+                if code:
+                    invite_codes.remove(code)
+                    save_data(INVITE_FILE, invite_codes)
 
-        return material_entry
+                st.session_state.user = new_user
+                st.sidebar.success(f"Signed up as {username}{' (Admin)' if is_admin else ''}")
 
+    # --- AFTER AUTH ---
+    if "user" in st.session_state:
+        current = st.session_state.user
+        st.sidebar.markdown("---")
+        st.sidebar.write(f"**Current User:** {current['username']}{' (Admin)' if current.get('admin') else ''}")
 
-def upload():
-    """
-    Streamlit component to handle file uploads.
-    """
-    st.header("Upload Material")
-    st.write("Upload PDF, DOCX, or image")
-    uploaded_files = st.file_uploader(
-        "Drag and drop file here",
-        type=["pdf", "docx", "png", "jpg", "jpeg"],
-        accept_multiple_files=True,
-        key="file_upload"
-    )
+        # Admin panel for invite codes
+        if current.get('admin'):
+            st.sidebar.subheader("Admin Panel")
+            if st.sidebar.button("Generate Invite Code"):
+                new_code = gen_invite_code()
+                invite_codes.append(new_code)
+                save_data(INVITE_FILE, invite_codes)
+                st.sidebar.success(f"New invite code: {new_code}")
 
-    if uploaded_files:
-        for uploaded in uploaded_files:
-            try:
-                metadata = UploadManager.save(uploaded)
-                st.success(f"Saved '{metadata['original_name']}' successfully.")
-            except Exception as e:
-                st.error(f"Error saving '{uploaded.name}': {str(e)}")
+            if invite_codes:
+                st.sidebar.write("**Active Codes:**")
+                for c in invite_codes:
+                    st.sidebar.text(c)
