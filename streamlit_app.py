@@ -1,5 +1,5 @@
 import streamlit as st
-from lesson_explainer import LessonExplainer
+from lesson_explainer import show_explanation
 
 # Try to import voice chat functionality
 voice_chat_available = False
@@ -13,19 +13,18 @@ except ImportError:
 def main():
     st.title("Math Tutor")
     mode = st.sidebar.selectbox("Select difficulty level:", ["easy", "quiz"])
-    
+
     if mode == "easy":
         text = st.text_area(
             "Enter material to explain:",
-            value=st.session_state.get("last_text", "")
+            value=st.session_state.get("last_text", ""),
         )
         if st.button("Explain"):
             # Save last text
             st.session_state["last_text"] = text
-            
             # Show explanation
-            LessonExplainer().explain(text)
-            
+            show_explanation(text)
+
             # Attempt to start voice chat if available
             if voice_chat_available and voice_enabled:
                 start_voice_chat(text)
