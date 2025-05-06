@@ -1,24 +1,26 @@
 import streamlit as st
 from lesson_explainer import LessonExplainer
 
-def show_explanation(text):
+
+def show_explanation(text: str) -> None:
     """
-    Displays the explanation interface: lets the user pick a difficulty level
-    and then uses LessonExplainer to generate and render the annotated explanation.
+    Display an interactive explanation interface using LessonExplainer.
+
+    Args:
+        text: The extracted lesson material to explain.
     """
-    st.title("Explain")
-    # 1) Let the user choose an explanation difficulty
+    # 1) Choose difficulty level
     level = st.selectbox(
         "Select difficulty level:",
         ["easy", "medium", "hard"],
-        index=0,
-        help="How detailed/challenging should the explanation be?"
+        index=0
     )
 
-    # 2) Instantiate the explainer (pass your Manus API key as positional)
-    api_key = st.secrets.get("MANUS_API_KEY")
-    explainer = LessonExplainer(api_key)
+    # 2) Instantiate the explainer (no args)
+    explainer = LessonExplainer()
 
-    # 3) Generate and display the explanation
-    resp = explainer.explain(text, level=level)
-    st.markdown(resp, unsafe_allow_html=True)
+    # 3) Generate the explanation
+    explanation_html = explainer.explain(text, level=level)
+
+    # 4) Display the HTML with highlights and notes
+    st.markdown(explanation_html, unsafe_allow_html=True)
