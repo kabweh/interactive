@@ -1,5 +1,3 @@
-# interactive/audio_interaction.py
-
 import streamlit as st
 
 try:
@@ -15,13 +13,13 @@ try:
             self.recognizer = sr.Recognizer()
 
         def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-            # (This is just a stub — implement streaming audio-to-text here if you wish.)
+            # Stub: Implement streaming audio-to-text logic here if desired
             return frame
 
     def start_voice_chat(text: str):
         """
-        Kick off a bi‑directional voice chat: 
-        - streams mic input to speech recognizer 
+        Kick off a bi‑directional voice chat:
+        - streams mic input to the speech recognizer
         - uses LessonExplainer to generate spoken replies
         """
         st.markdown("### Voice chat mode")
@@ -35,17 +33,13 @@ try:
 
 except ImportError:
     st.warning(
-        "🔈  **Audio interaction disabled**  \n"
-        "To enable voice chat install `streamlit-webrtc` and `av`:\n\n"
-        ```
-        pip install streamlit-webrtc av
-        ```"
+        "🔈  **Audio interaction disabled**  \
+        To enable voice chat, install the `streamlit-webrtc` and `av` packages:\n\n"
+        "pip install streamlit-webrtc av"
     )
 
     def start_voice_chat(text: str):
         """No-op fallback when streamlit-webrtc isn’t available."""
-        # Optionally guide the user to install dependencies.
-        st.markdown(
-            "Voice chat is unavailable because the required "
-            "`streamlit-webrtc` package is not installed."
+        st.info(
+            "Voice chat is unavailable because the `streamlit-webrtc` package is not installed."
         )
