@@ -1,52 +1,47 @@
 import streamlit as st
 from lesson_explainer import LessonExplainer
+import inspect
 
-# Attempt to import WebRTC and speech libraries; disable if unavailable
-try:
-    from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-    import speech_recognition as sr
-    webrtc_available = True
-except ImportError:
-    webrtc_available = False
-
-
-def start_voice_chat(text: str) -> None:
+def show_explanation(text: str) -> None:
     """
-    Start an interactive voice chat session using WebRTC and speech recognition.
-    If WebRTC isn't installed, inform the user and skip audio.
+    Display an interactive explanation interface using LessonExplainer.
 
     Args:
-        text: The initial lesson text (unused placeholder for compatibility).
+        text: The extracted lesson material to explain.
     """
-    if not webrtc_available:
-        st.warning("Voice chat is unavailable because 'streamlit-webrtc' is not installed.")
-        return
+    # 1) Choose difficulty level
+    level = st.selectbox(
+        "Select difficulty level:",
+        ["easy", "medium", "hard"],
+        index=0
+    )
 
+    # 2) Instantiate the explainer
     explainer = LessonExplainer()
 
-    class VoiceChatProcessor(AudioProcessorBase):
-        def __init__(self):
-            self.recognizer = sr.Recognizer()
+    # 3) Determine available explanation method
+    if hasattr(explainer, "explain"):
+        method = explainer.explain
+    elif hasattr(explainer, "generate"):
+        method = explainer.generate
+    elif hasattr(explainer, "generate_explanation"):
+        method = explainer.generate_explanation
+    elif hasattr(explainer, "get_explanation"):
+        method = explainer.get_explanation
+    else:
+        st.error("Unsupported explainer API. Unable to find an explanation method.")
+        return
 
-        def recv(self, frame):
-            # Convert incoming audio frame to raw bytes
-            audio_frame = frame.to_ndarray()
-            raw_bytes = audio_frame.tobytes()
-            # Build AudioData for recognition
-            try:
-                audio_data = sr.AudioData(raw_bytes, frame.sample_rate, audio_frame.dtype.itemsize)
-                user_query = self.recognizer.recognize_google(audio_data)
-                # Generate and display explanation for spoken input
-                explanation_html = explainer.explain(user_query)
-                st.markdown(explanation_html, unsafe_allow_html=True)
-            except Exception:
-                # Ignore unrecognized speech or errors
-                pass
-            return frame
+    # 4) Generate the explanation, with or without difficulty level
+    try:
+        sig = inspect.signature(method)
+        if "level" in sig.parameters:
+            explanation_html = method(text, level=level)
+        else:
+            explanation_html = method(text)
+    except Exception as e:
+        st.error(f"Error generating explanation: {e}")
+        return
 
-    # Launch WebRTC streamer for bidirectional audio
-    webrtc_streamer(
-        key="voice-chat",
-        mode=WebRtcMode.SENDRECV,
-        audio_processor_factory=VoiceChatProcessor,
-    )
+    # 5) Display the HTML with highlights and notes
+    st.markdown(explanation_html, unsafe_allow_html=True)
