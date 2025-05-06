@@ -1,56 +1,46 @@
 import os
 import streamlit as st
-from text_extraction_component import extract_text
 
 # Directory to save uploaded files
 UPLOAD_DIR = "uploads"
+# Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 class UploadManager:
-    """
-    Handles saving uploaded files and extracting text from them.
-    """
     @staticmethod
-    def save(uploaded_file) -> dict:
+    def save(uploaded_file):
         """
-        Save the uploaded file to disk and extract its text.
-
-        Args:
-            uploaded_file: The file-like object returned by Streamlit's file_uploader.
-
-        Returns:
-            A dict with 'path' (str) to the saved file and 'text' (str) extracted.
+        Save the uploaded file to disk and return its path and extracted text.
         """
-        # Save file
+        # Construct file path
         file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
+        # Write file to disk
         with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-
-        # Extract text (PDF, DOCX, image)
+            f.write(uploaded_file.read())
+        # Attempt text extraction if available
+        extracted_text = ""
         try:
-            text = extract_text(file_path)
-        except Exception as e:
-            st.error(f"Error extracting text: {e}")
-            text = ""
-
-        return {"path": file_path, "text": text}
+            # Import here to avoid breaking if module is missing
+            from text_extraction_component import extract_text
+            extracted_text = extract_text(file_path)
+        except ImportError:
+            # No extraction module found; skip
+            extracted_text = ""
+        return {"path": file_path, "text": extracted_text}
 
 
 def upload():
     """
-    Streamlit UI component to upload a material and save it.
+    Display a file uploader widget and handle saving uploads.
     """
-    st.title("AI Tutor – Upload Material")
-    uploaded = st.file_uploader(
-        "Upload PDF, DOCX, or image",
+    st.subheader("Upload PDF, DOCX, or image")
+    uploaded_file = st.file_uploader(
+        label="Drag and drop file here",
         type=["pdf", "docx", "png", "jpg", "jpeg"],
-        help="Limit 200MB per file • PDF, DOCX, PNG, JPG, JPEG",
-        accept_multiple_files=False
+        help="Limit 200MB per file • PDF, DOCX, PNG, JPG, JPEG"
     )
-    if uploaded:
-        metadata = UploadManager.save(uploaded)
+    if uploaded_file:
+        metadata = UploadManager.save(uploaded_file)
         st.success(f"File saved as {metadata['path']}")
-        # Store extracted text for downstream use
+        # Store extracted text for downstream components
         st.session_state["last_text"] = metadata["text"]
-        return metadata
-    return None
