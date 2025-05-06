@@ -23,7 +23,7 @@ def main():
             # Save last text
             st.session_state["last_text"] = text
             
-            # Use LessonExplainer to show the explanation
+            # Show explanation
             LessonExplainer().explain(text)
             
             # Attempt to start voice chat if available
