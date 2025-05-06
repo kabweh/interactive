@@ -1,36 +1,39 @@
 import streamlit as st
 from lesson_explainer import LessonExplainer
 
-# Feature flag
+# Feature flags
 voice_enabled = True
+webrtc_available = False
 
-# Attempt to import WebRTC and speech recognition libraries
+# Try to import WebRTC components
 try:
     from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
     import av
+    webrtc_available = True
 except ImportError:
-    voice_enabled = False
+    webrtc_available = False
 
+# Try to import speech_recognition
 try:
     import speech_recognition as sr
 except ImportError:
     voice_enabled = False
 
-
-# Simple AudioProcessor stub
-class DummyAudioProcessor(AudioProcessorBase):
-    def recv(self, frame):
-        return frame
+# Only define DummyAudioProcessor if AudioProcessorBase was imported
+if webrtc_available:
+    class DummyAudioProcessor(AudioProcessorBase):
+        def recv(self, frame):
+            return frame
 
 
 def start_voice_chat(text):
-    if not voice_enabled:
+    # Only proceed if both WebRTC and speech_recognition are present
+    if not (webrtc_available and voice_enabled):
         return
 
     st.header("Voice Chat")
     st.write("Listening... speak your questions aloud.")
 
-    # Start the WebRTC audio stream
     webrtc_streamer(
         key="voice-chat",
         mode=WebRtcMode.SENDRECV,
@@ -38,8 +41,6 @@ def start_voice_chat(text):
         media_stream_constraints={"audio": True, "video": False},
     )
 
-    # (Here you could hook up speech_recognition to captured frames and
-    # feed questions back into LessonExplainer.)
-
-    # For now, just replay the explanation once the stream starts
+    # After or during the stream, you could capture audio and feed back to LessonExplainer.
+    # For now we simply replay the explanation:
     LessonExplainer().explain(text)
