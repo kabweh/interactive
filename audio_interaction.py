@@ -1,15 +1,20 @@
 import streamlit as st
 
-# Feature flag
+# feature-flag for voice
 voice_enabled = True
 
-# Attempt to import WebRTC and speech recognition libraries
+# Try to import WebRTC + provide a stub base if that fails
 try:
     from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
     import av
 except ImportError:
     voice_enabled = False
+    # stub base so class DummyAudioProcessor can always be defined
+    class AudioProcessorBase:
+        def __init__(self, *args, **kwargs):
+            pass
 
+# Try to import speech recognition
 try:
     import speech_recognition as sr
 except ImportError:
@@ -17,11 +22,9 @@ except ImportError:
 
 from lesson_explainer import LessonExplainer
 
-# Simple AudioProcessor stub
 class DummyAudioProcessor(AudioProcessorBase):
     def recv(self, frame):
         return frame
-
 
 def start_voice_chat(text):
     if not voice_enabled:
@@ -34,6 +37,4 @@ def start_voice_chat(text):
         audio_processor_factory=DummyAudioProcessor,
         media_stream_constraints={"audio": True, "video": False},
     )
-    # After streaming, process with speech_recognition
-    # (Implementation depends on capturing audio frames.)
     LessonExplainer().explain(text)
