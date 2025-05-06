@@ -1,46 +1,24 @@
-import os
 import streamlit as st
-
-# Directory to save uploaded files
-UPLOAD_DIR = "uploads"
-# Ensure upload directory exists
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-class UploadManager:
-    @staticmethod
-    def save(uploaded_file):
-        """
-        Save the uploaded file to disk and return its path and extracted text.
-        """
-        # Construct file path
-        file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
-        # Write file to disk
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.read())
-        # Attempt text extraction if available
-        extracted_text = ""
-        try:
-            # Import here to avoid breaking if module is missing
-            from text_extraction_component import extract_text
-            extracted_text = extract_text(file_path)
-        except ImportError:
-            # No extraction module found; skip
-            extracted_text = ""
-        return {"path": file_path, "text": extracted_text}
+from lesson_explainer import LessonExplainer
 
 
-def upload():
+def show_explanation(text: str) -> None:
     """
-    Display a file uploader widget and handle saving uploads.
+    Display an interactive explanation of provided lesson text.
     """
-    st.subheader("Upload PDF, DOCX, or image")
-    uploaded_file = st.file_uploader(
-        label="Drag and drop file here",
-        type=["pdf", "docx", "png", "jpg", "jpeg"],
-        help="Limit 200MB per file • PDF, DOCX, PNG, JPG, JPEG"
+    # 1) Ask user for difficulty level
+    level = st.selectbox(
+        "Select difficulty level:",
+        ["easy", "medium", "hard"],
+        index=0,
     )
-    if uploaded_file:
-        metadata = UploadManager.save(uploaded_file)
-        st.success(f"File saved as {metadata['path']}")
-        # Store extracted text for downstream components
-        st.session_state["last_text"] = metadata["text"]
+
+    # 2) Instantiate the explainer with API key as a positional argument
+    api_key = st.secrets.get("MANUS_API_KEY")
+    explainer = LessonExplainer(api_key)
+
+    # 3) Generate explanation
+    explanation_html = explainer.explain(text, level=level)
+
+    # 4) Display the rendered HTML explanation
+    st.markdown(explanation_html, unsafe_allow_html=True)
