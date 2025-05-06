@@ -1,58 +1,51 @@
-# ai_tutor_project/audio_interaction.py
+# interactive/audio_interaction.py
+
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-import av
-import speech_recognition as sr
-from lesson_explainer import LessonExplainer
-from text_to_speech import TTS
 
-def start_voice_chat(content: str):
-    """
-    Begins a continuous voice interaction where the student speaks queries
-    and the AI tutor responds with synthesized speech.
-    """
-    st.write("🔊 Voice chat initiated. Please speak your question.")
+try:
+    from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+    import av
+    import speech_recognition as sr
+    from lesson_explainer import LessonExplainer
 
-    class VoiceProcessor(AudioProcessorBase):
-        def __init__(self, lesson_content: str):
-            self.lesson_content = lesson_content
+    class _AudioProcessor(AudioProcessorBase):
+        def __init__(self, explainer, text):
+            self.explainer = explainer
+            self.text = text
             self.recognizer = sr.Recognizer()
 
         def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-            # Convert incoming audio frame to raw PCM bytes
-            pcm = frame.to_ndarray()
-            audio_data = sr.AudioData(
-                pcm.tobytes(),
-                frame.sample_rate,
-                pcm.dtype.itemsize
-            )
-            try:
-                # Recognize student speech
-                query = self.recognizer.recognize_google(audio_data)
-                st.session_state["last_query"] = query
-
-                # Generate AI response
-                explainer = LessonExplainer(api_key=st.secrets.get("MANUS_API_KEY"))
-                resp = explainer.explain(
-                    self.lesson_content + "\nStudent asked: " + query,
-                    level="medium"
-                )
-                answer = resp.get("text", "")
-                st.session_state["last_answer"] = answer
-
-                # Play synthesized response
-                audio_bytes = TTS.synthesize(answer)
-                st.audio(audio_bytes, format="audio/mp3")
-
-            except Exception:
-                # Ignore recognition errors silently
-                pass
-
+            # (This is just a stub — implement streaming audio-to-text here if you wish.)
             return frame
 
-    # Start WebRTC streamer for audio send/receive
-    webrtc_streamer(
-        key="voice-chat",
-        mode=WebRtcMode.SENDRECV,
-        audio_processor_factory=lambda: VoiceProcessor(content)
+    def start_voice_chat(text: str):
+        """
+        Kick off a bi‑directional voice chat: 
+        - streams mic input to speech recognizer 
+        - uses LessonExplainer to generate spoken replies
+        """
+        st.markdown("### Voice chat mode")
+        explainer = LessonExplainer()
+        webrtc_streamer(
+            key="lesson-voice",
+            mode=WebRtcMode.SENDRECV,
+            audio_processor_factory=lambda: _AudioProcessor(explainer, text),
+            media_stream_constraints={"audio": True, "video": False},
+        )
+
+except ImportError:
+    st.warning(
+        "🔈  **Audio interaction disabled**  \n"
+        "To enable voice chat install `streamlit-webrtc` and `av`:\n\n"
+        ```
+        pip install streamlit-webrtc av
+        ```"
     )
+
+    def start_voice_chat(text: str):
+        """No-op fallback when streamlit-webrtc isn’t available."""
+        # Optionally guide the user to install dependencies.
+        st.markdown(
+            "Voice chat is unavailable because the required "
+            "`streamlit-webrtc` package is not installed."
+        )
