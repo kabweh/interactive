@@ -1,8 +1,13 @@
 import streamlit as st
-import speech_recognition as sr
 from lesson_explainer import LessonExplainer
 
-# Try to import the WebRTC streamer
+# Detect optional dependencies
+try:
+    import speech_recognition as sr
+    SR_AVAILABLE = True
+except ModuleNotFoundError:
+    SR_AVAILABLE = False
+
 try:
     from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
     import av
@@ -13,49 +18,55 @@ except ModuleNotFoundError:
 
 def start_voice_chat(text: str) -> None:
     """
-    If possible, starts a two‐way voice chat:
-      - Streams microphone audio in
-      - Runs speech recognition on it
-      - Sends each transcript back through LessonExplainer
-    Otherwise, shows an install hint.
+    Launch a two-way voice chat if dependencies are present.
+
+    Args:
+        text: The initial lesson text (unused for now, but kept for signature consistency).
     """
-    if not WEBRTC_AVAILABLE:
+    # If either speech_recognition or WebRTC is missing, show install instructions
+    if not WEBRTC_AVAILABLE or not SR_AVAILABLE:
+        missing = []
+        if not WEBRTC_AVAILABLE:
+            missing.append("streamlit-webrtc av")
+        if not SR_AVAILABLE:
+            missing.append("speechrecognition")
         st.info(
             "🔈 **Audio interaction disabled.**\n\n"
             "To enable voice chat, install the required packages:\n\n"
             "```\n"
-            "pip install streamlit-webrtc av\n"
+            f"pip install {' '.join(missing)}\n"
             "```"
         )
         return
 
-    # A minimal audio processor that recognizes speech and explainer responds
     class _AudioProcessor(AudioProcessorBase):
+        """Processes incoming audio, does speech-to-text, and responds via LessonExplainer."""
         def __init__(self):
             self.recognizer = sr.Recognizer()
             self.explainer = LessonExplainer()
 
         def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-            # Convert the incoming WebRTC audio frame to raw bytes
-            sr_audio = sr.AudioData(
-                frame.to_ndarray().tobytes(),
+            # Convert WebRTC audio frame to SpeechRecognition AudioData
+            pcm = frame.to_ndarray().T
+            audio_data = sr.AudioData(
+                pcm.tobytes(),
                 frame.layout.sample_rate,
                 frame.layout.sample_width
             )
             try:
-                # Recognize speech (you may choose a different API/language)
-                user_utterance = self.recognizer.recognize_google(sr_audio)
-                # Generate an explanation for what was just said
+                # Attempt recognition
+                user_utterance = self.recognizer.recognize_google(audio_data)
+                # Generate an explanation on-the-fly
                 response_html = self.explainer.explain(user_utterance, level="medium")
-                # Display it in the Streamlit app
                 st.markdown(response_html, unsafe_allow_html=True)
             except sr.UnknownValueError:
-                # could not parse audio
+                # Couldn't understand audio
                 pass
             except sr.RequestError:
                 st.error("Speech recognition service is unavailable.")
             return frame
 
+    # Launch the WebRTC component
     webrtc_streamer(
         key="voice-chat",
         mode=WebRtcMode.SENDRECV,
