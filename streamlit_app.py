@@ -1,40 +1,40 @@
-# ai_tutor_project/streamlit_app.py
 import streamlit as st
-from auth_component import auth_ui
-from upload_component import upload
-from explanation_component import show_explanation
-from quiz_component import show_quiz
-from report_component import send_report
+from lesson_explainer import show_explanation
 
-st.set_page_config(page_title="AI Tutor", layout="wide")
+# Try to import voice chat functionality
+voice_chat_available = False
+try:
+    from audio_interaction import start_voice_chat, voice_enabled
+    voice_chat_available = True
+except ImportError:
+    voice_chat_available = False
 
-# --- Authentication ---
-auth_ui()
-if "user" not in st.session_state:
-    st.stop()
 
-# --- Sidebar Navigation ---
-mode = st.sidebar.radio("Mode", ["Upload", "Explain", "Quiz", "Report"])
+def main():
+    st.title("Math Tutor")
+    mode = st.sidebar.selectbox("Select difficulty level:", ["easy", "quiz"])
 
-# Initialize state
-st.session_state.setdefault("last_text", "")
-st.session_state.setdefault("last_explanation", "")
-st.session_state.setdefault("user_id", 1)
+    if mode == "easy":
+        text = st.text_area("Enter material to explain:", value=st.session_state.get("last_text", ""))
+        if st.button("Explain"):
+            # Save last text
+            st.session_state["last_text"] = text
+            # Show explanation
+            show_explanation(text)
 
-# --- Main Views ---
-if mode == "Upload":
-    upload()
+            # Attempt to start voice chat if available
+            if voice_chat_available and voice_enabled:
+                start_voice_chat(text)
+            else:
+                st.info(
+                    "🔈 Audio interaction disabled.\n"
+                    "To enable voice chat, install the required packages:\n"
+                    "pip install streamlit-webrtc av speechrecognition"
+                )
 
-elif mode == "Explain":
-    # 1) Display explanation visuals
-    show_explanation(st.session_state["last_text"])
+    elif mode == "quiz":
+        st.write("Quiz mode coming soon...")
 
-    # 2) Engage in continuous voice chat
-    from audio_interaction import start_voice_chat
-    start_voice_chat(st.session_state["last_text"])
 
-elif mode == "Quiz":
-    show_quiz(st.session_state["last_text"])
-
-elif mode == "Report":
-    send_report()
+if __name__ == "__main__":
+    main()
