@@ -1,47 +1,52 @@
 import streamlit as st
 from lesson_explainer import LessonExplainer
 
-def show_explanation(text: str) -> None:
+# Attempt to import WebRTC and speech libraries; disable if unavailable
+try:
+    from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+    import speech_recognition as sr
+    webrtc_available = True
+except ImportError:
+    webrtc_available = False
+
+
+def start_voice_chat(text: str) -> None:
     """
-    Display an interactive explanation interface using LessonExplainer.
+    Start an interactive voice chat session using WebRTC and speech recognition.
+    If WebRTC isn't installed, inform the user and skip audio.
 
     Args:
-        text: The extracted lesson material to explain.
+        text: The initial lesson text (unused placeholder for compatibility).
     """
-    # 1) Choose difficulty level
-    level = st.selectbox(
-        "Select difficulty level:",
-        ["easy", "medium", "hard"],
-        index=0
-    )
+    if not webrtc_available:
+        st.warning("Voice chat is unavailable because 'streamlit-webrtc' is not installed.")
+        return
 
-    # 2) Instantiate the explainer (no args)
     explainer = LessonExplainer()
 
-    # 3) Generate the explanation by trying known methods and calling them flexibly
-    explanation_html = None
-    for method_name in ("explain", "generate", "generate_explanation", "get_explanation"):
-        if hasattr(explainer, method_name):
-            method = getattr(explainer, method_name)
-            # Try calling with level as keyword, then positional, then without
-            for call in (
-                lambda: method(text, level=level),
-                lambda: method(text, level),
-                lambda: method(text),
-            ):
-                try:
-                    explanation_html = call()
-                    break
-                except TypeError:
-                    continue
-            if explanation_html is not None:
-                break
+    class VoiceChatProcessor(AudioProcessorBase):
+        def __init__(self):
+            self.recognizer = sr.Recognizer()
 
-    if explanation_html is None:
-        raise AttributeError(
-            "Could not call any of explain/generate/generate_explanation/get_explanation "
-            "with or without a 'level' argument on LessonExplainer."
-        )
+        def recv(self, frame):
+            # Convert incoming audio frame to raw bytes
+            audio_frame = frame.to_ndarray()
+            raw_bytes = audio_frame.tobytes()
+            # Build AudioData for recognition
+            try:
+                audio_data = sr.AudioData(raw_bytes, frame.sample_rate, audio_frame.dtype.itemsize)
+                user_query = self.recognizer.recognize_google(audio_data)
+                # Generate and display explanation for spoken input
+                explanation_html = explainer.explain(user_query)
+                st.markdown(explanation_html, unsafe_allow_html=True)
+            except Exception:
+                # Ignore unrecognized speech or errors
+                pass
+            return frame
 
-    # 4) Display the HTML with highlights and notes
-    st.markdown(explanation_html, unsafe_allow_html=True)
+    # Launch WebRTC streamer for bidirectional audio
+    webrtc_streamer(
+        key="voice-chat",
+        mode=WebRtcMode.SENDRECV,
+        audio_processor_factory=VoiceChatProcessor,
+    )
