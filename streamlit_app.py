@@ -1,5 +1,5 @@
 import streamlit as st
-from lesson_explainer import show_explanation
+from lesson_explainer import LessonExplainer
 
 # Try to import voice chat functionality
 voice_chat_available = False
@@ -22,8 +22,10 @@ def main():
         if st.button("Explain"):
             # Save last text
             st.session_state["last_text"] = text
+
             # Show explanation
-            show_explanation(text)
+            explainer = LessonExplainer()
+            explainer.explain(text)
 
             # Attempt to start voice chat if available
             if voice_chat_available and voice_enabled:
@@ -32,7 +34,7 @@ def main():
                 st.info(
                     "🔈 Audio interaction disabled.\n"
                     "To enable voice chat, install the required packages:\n"
-                    "pip install streamlit-webrtc av speechrecognition"
+                    "`pip install streamlit-webrtc av speechrecognition`"
                 )
 
     elif mode == "quiz":
