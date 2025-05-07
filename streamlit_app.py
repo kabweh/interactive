@@ -3,9 +3,9 @@ import streamlit as st
 from lesson_explainer import LessonExplainer
 from audio_interaction import start_voice_chat, voice_enabled
 
-# --- Session-state defaults ---
+# --- Session‐state defaults ---
 if "users" not in st.session_state:
-    st.session_state["users"] = {}           # username -> password
+    st.session_state["users"] = {}           # username → password
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "last_text" not in st.session_state:
@@ -48,8 +48,7 @@ def tutor_mode():
         else:
             st.info(
                 "🔈 Audio interaction disabled.\n"
-                "To enable voice chat, install:\n"
-                "`pip install streamlit-webrtc av speechrecognition`"
+                "To enable: `pip install streamlit-webrtc av speechrecognition`"
             )
 
 def quiz_mode():
